@@ -1,0 +1,8 @@
+Package: toml11
+Version: 3.7.1
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-linux
+Multi-Arch: same
+Abi: b39b87cc0f97865270dc59b139b138f7ac00a7d3fe7d07c83c47261bb80c6c5e
+Description: A C++11 header-only toml parser/encoder depending only on C++ standard library.
+Status: install ok installed
