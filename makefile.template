@@ -1,6 +1,5 @@
 .PHONY: all
 all:
-	mkdir build
 	cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=[path to vcpkg.cmake] -DCMAKE_EXPORT_COMPILE_COMMANDS=1
 	cmake --build build
 
