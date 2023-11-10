@@ -1,11 +1,13 @@
 #include "application.hpp"
+#include "cube.hpp"
+#include "geometry.hpp"
 
+#include <glm/gtx/transform.hpp>
 #include <memory>
+#include <stdexcept>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
-using std::make_shared;
 
 GLuint load_texture_2d(const std::filesystem::path filename) {
     int width, height, channels;
@@ -14,7 +16,7 @@ GLuint load_texture_2d(const std::filesystem::path filename) {
     GLuint texture;
     glCreateTextures(GL_TEXTURE_2D, 1, &texture);
 
-    glTextureStorage2D(texture, std::log2(width), GL_RGBA8, width, height);
+    glTextureStorage2D(texture, std::log2(std::min(width, height)), GL_RGBA8, width, height);
 
     glTextureSubImage2D(texture,
                         0,                         //
@@ -38,41 +40,52 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
     this->width = initial_width;
     this->height = initial_height;
 
-    images_path = lecture_folder_path / "images";
-    objects_path = lecture_folder_path / "objects";
-
     // --------------------------------------------------------------------------
     //  Load/Create Objects
     // --------------------------------------------------------------------------
-    geometries.push_back(make_shared<Sphere>());
-    // You can use from_file function to load a Geometry from .obj file
-    geometries.push_back(make_shared<Geometry>(Geometry::from_file(objects_path / "bunny.obj")));
-
-    sphere = geometries[0];
-    bunny = geometries[1];
-
-    marble_texture = load_texture_2d(images_path / "bunny.jpg");
+    skybox_texture = load_texture_2d(images_path / "stars.jpg");
+    earth_day_texture = load_texture_2d(images_path / "earth_day.jpg");
+    earth_night_texture = load_texture_2d(images_path / "earth_night.jpg");
+    sun_texture = load_texture_2d(images_path / "sun.jpg");
 
     // --------------------------------------------------------------------------
     // Initialize UBO Data
     // --------------------------------------------------------------------------
+    camera_ubo.projection = glm::perspective(
+        glm::radians(45.0f),
+        float(width) / float(height),
+        0.01f, 1000.0f);
+    camera_ubo.view = glm::lookAt(
+        camera.get_eye_position(),
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
     camera_ubo.position = glm::vec4(camera.get_eye_position(), 1.0f);
-    camera_ubo.projection = glm::perspective(glm::radians(45.0f), float(width) / float(height), 0.01f, 1000.0f);
-    camera_ubo.view = glm::lookAt(camera.get_eye_position(), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-    light_ubo.position = glm::vec4(0.0f, 3.0f, 2.0f, 1.0f);
+    // TODO make again point (pos.w = 1)
+    light_ubo.position = glm::vec4(0.0f, 8.0f, 20.0f, 0.0f);
     light_ubo.ambient_color = glm::vec4(1.0f);
-    light_ubo.diffuse_color = glm::vec4(2.0f, 2.0f, 1.0f, 1.0f);
-    light_ubo.specular_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    light_ubo.diffuse_color = glm::vec4(1.0f);
+    light_ubo.specular_color = glm::vec4(1.0f);
 
-    objects_ubos.push_back({.model_matrix = glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(0.1f)), glm::vec3(light_ubo.position)),
-                            .ambient_color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f),
-                            .diffuse_color = glm::vec4(0.0),
-                            .specular_color = glm::vec4(0.0f)});
-    objects_ubos.push_back({.model_matrix = glm::mat4(1.0f),
-                            .ambient_color = glm::vec4(0.0f),
-                            .diffuse_color = glm::vec4(1.0f),
-                            .specular_color = glm::vec4(0.0f)});
+    skybox_ubo.model_matrix = glm::scale(glm::vec3{100.0f, 100.0f, 100.0f});
+    skybox_ubo.ambient_color = glm::vec4(0.01f);
+    skybox_ubo.diffuse_color = glm::vec4(0.0f);
+    skybox_ubo.specular_color = glm::vec4(0.0f);
+
+    // TODO update value
+    earth_ubo.model_matrix = glm::scale(
+        glm::rotate(glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+        glm::vec3{1.0f, 1.0f, 1.0f});
+    earth_ubo.ambient_color = glm::vec4(0.8f);
+    earth_ubo.diffuse_color = glm::vec4(0.8f);
+    earth_ubo.specular_color = glm::vec4(0.1f);
+
+    sun_ubo.model_matrix = glm::translate(
+        glm::scale(glm::vec3{5.0f, 5.0f, 5.0f}),
+        glm::vec3(light_ubo.position));
+    sun_ubo.ambient_color = glm::vec4(1.0f, 0.5f, 0.0f, 1.0f);
+    sun_ubo.diffuse_color = glm::vec4(0.0f);
+    sun_ubo.specular_color = glm::vec4(0.0f);
 
     // --------------------------------------------------------------------------
     // Create Buffers
@@ -83,8 +96,33 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
     glCreateBuffers(1, &light_buffer);
     glNamedBufferStorage(light_buffer, sizeof(LightUBO), &light_ubo, GL_DYNAMIC_STORAGE_BIT);
 
-    glCreateBuffers(1, &objects_buffer);
-    glNamedBufferStorage(objects_buffer, sizeof(ObjectUBO) * objects_ubos.size(), objects_ubos.data(), GL_DYNAMIC_STORAGE_BIT);
+    glCreateBuffers(1, &skybox_buffer);
+    glNamedBufferStorage(
+        skybox_buffer,
+        sizeof(ObjectUBO),
+        &skybox_ubo,
+        0);
+
+    glCreateBuffers(1, &earth_buffer);
+    glNamedBufferStorage(
+        earth_buffer,
+        sizeof(ObjectUBO),
+        &earth_ubo,
+        GL_DYNAMIC_STORAGE_BIT);
+
+    glCreateBuffers(1, &sun_buffer);
+    glNamedBufferStorage(
+        sun_buffer,
+        sizeof(ObjectUBO),
+        &sun_ubo,
+        0);
+
+    glCreateFramebuffers(1, &frame_buffer_name);
+    glCreateTextures(GL_TEXTURE_2D, 1, &render_texture);
+    glGenRenderbuffers(1, &depth_buffer);
+
+    // TODO push this to initialization and use proper functions (from sem)
+    glCreateVertexArrays(1, &render_texture_vao);
 
     compile_shaders();
 }
@@ -92,9 +130,11 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
 Application::~Application() {
     delete_shaders();
 
+    // TODO
+
     glDeleteBuffers(1, &camera_buffer);
     glDeleteBuffers(1, &light_buffer);
-    glDeleteBuffers(1, &objects_buffer);
+    glDeleteBuffers(1, &skybox_buffer);
 }
 
 // ----------------------------------------------------------------------------
@@ -105,19 +145,70 @@ void Application::delete_shaders() {}
 
 void Application::compile_shaders() {
     delete_shaders();
-    main_program = create_program(lecture_shaders_path / "main.vert", lecture_shaders_path / "main.frag");
+    normal_program = create_program(
+        lecture_shaders_path / "normal.vert",
+        lecture_shaders_path / "normal.frag");
+
+    postprocess_program = create_program(
+        lecture_shaders_path / "postprocess.vert",
+        lecture_shaders_path / "postprocess.frag");
 }
 
-void Application::update(float delta) {}
+void Application::update(float delta) {
+    earth_ubo.model_matrix = glm::rotate(
+        earth_ubo.model_matrix,
+        glm::radians(360.0f * (delta / 10000.0f)),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+
+/* TODO uncomment rotation
+    glNamedBufferSubData(
+        earth_buffer,
+        0,
+        sizeof(ObjectUBO),
+        &earth_ubo);
+*/
+}
 
 void Application::render() {
+    // --------------------------------------------------------------------------
+    // Set up framebuffer
+    // --------------------------------------------------------------------------
+    // Setup framebuffer (TODO should it be all there?)
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer_name);
+
+    glBindTexture(GL_TEXTURE_2D, render_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_buffer);
+
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, render_texture, 0);
+
+    GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, draw_buffers);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "Cannot initialize frame buffer\n";
+        throw std::exception{};
+    }
+
     // --------------------------------------------------------------------------
     // Update UBOs
     // --------------------------------------------------------------------------
     // Camera
-    camera_ubo.position = glm::vec4(camera.get_eye_position(), 1.0f);
-    camera_ubo.projection = glm::perspective(glm::radians(45.0f), static_cast<float>(width) / static_cast<float>(height), 0.01f, 1000.0f);
-    camera_ubo.view = glm::lookAt(camera.get_eye_position(), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    camera_ubo.position = glm::vec4(camera.get_eye_position(), 0.0f);
+    camera_ubo.projection = glm::perspective(
+        glm::radians(45.0f),
+        static_cast<float>(width) / static_cast<float>(height),
+        0.01f, 1000.0f);
+    camera_ubo.view = glm::lookAt(
+        camera.get_eye_position(),
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+
     glNamedBufferSubData(camera_buffer, 0, sizeof(CameraUBO), &camera_ubo);
 
     // --------------------------------------------------------------------------
@@ -129,33 +220,67 @@ void Application::render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // Configure fixed function pipeline
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(clear_color[0], clear_color[1], clear_color[2], clear_color[3]);
 
     glEnable(GL_DEPTH_TEST);
 
     glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    // Draw objects
-    glUseProgram(main_program);
+    // Prepare shader
+    glUseProgram(normal_program);
 
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, camera_buffer);
     glBindBufferBase(GL_UNIFORM_BUFFER, 1, light_buffer);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 2, objects_buffer, 0 * 256, sizeof(ObjectUBO));
-    
-    glUniform1i(glGetUniformLocation(main_program, "has_texture"), false);
-    sphere->draw();
+
+    // Draw sun
+    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
+    glBindTextureUnit(3, sun_texture);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 2, sun_buffer, 0, sizeof(ObjectUBO));
+    unit_sphere.draw();
+
+    // Draw earth
+    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
+    glBindTextureUnit(3, earth_day_texture);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 2, earth_buffer, 0, sizeof(ObjectUBO));
+    unit_sphere.draw();
+
+    // Draw skybox
+    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
+    glBindTextureUnit(3, skybox_texture);
+    glDisable(GL_CULL_FACE);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 2, skybox_buffer, 0, sizeof(ObjectUBO));
+    unit_cube.draw();
+
+    // TODO CITE:
+    // http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-14-render-to-texture/
+    // ----------a----------------------------------------------------------------
+    // Set up framebuffer
+    // --------------------------------------------------------------------------
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glViewport(0, 0, width, height);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+
+    glUseProgram(postprocess_program);
 
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, camera_buffer);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, light_buffer);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 2, objects_buffer, 1 * 256, sizeof(ObjectUBO));
+    glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(camera_ubo.projection));
+    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(camera_ubo.view));
 
-    glUniform1i(glGetUniformLocation(main_program, "has_texture"), true);
-    glBindTextureUnit(3, marble_texture);
-    bunny->draw();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, render_texture);
+
+    glBindVertexArray(render_texture_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
 }
 
 void Application::render_ui() { const float unit = ImGui::GetFontSize(); }
@@ -169,8 +294,14 @@ void Application::on_resize(int width, int height) {
     PV112Application::on_resize(width, height);
 }
 
-void Application::on_mouse_move(double x, double y) { camera.on_mouse_move(x, y); }
-void Application::on_mouse_button(int button, int action, int mods) { camera.on_mouse_button(button, action, mods); }
+void Application::on_mouse_move(double x, double y) {
+    camera.on_mouse_move(x, y);
+}
+
+void Application::on_mouse_button(int button, int action, int mods) {
+    camera.on_mouse_button(button, action, mods);
+}
+
 void Application::on_key_pressed(int key, int scancode, int action, int mods) {
     // Calls default implementation that invokes compile_shaders when 'R key is hit.
     PV112Application::on_key_pressed(key, scancode, action, mods);

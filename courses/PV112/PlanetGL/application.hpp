@@ -9,9 +9,11 @@
 
 #include "camera.h"
 #include "cube.hpp"
+#include "geometry.hpp"
 #include "pv112_application.hpp"
 #include "sphere.hpp"
 #include "teapot.hpp"
+#include <memory>
 
 // ----------------------------------------------------------------------------
 // UNIFORM STRUCTS
@@ -47,47 +49,56 @@ class Application : public PV112Application {
     // ----------------------------------------------------------------------------
     // Variables
     // ----------------------------------------------------------------------------
-    std::filesystem::path images_path;
-    std::filesystem::path objects_path;
+    // Paths
+    std::filesystem::path images_path = lecture_folder_path / "images";
+    std::filesystem::path objects_path = lecture_folder_path / "objects";
 
-    // Main program
-    GLuint main_program;
-    // TODO: feel free to add as many as you need/like
-
-    // List of geometries used in the project
-    std::vector<std::shared_ptr<Geometry>> geometries;
-    // Shared pointers are pointers that automatically count how many times they are used. When there are 0 pointers to the object pointed
-    // by shared_ptrs, the object is automatically deallocated. Consequently, we gain 3 main properties:
-    // 1. Objects are not unnecessarily copied
-    // 2. We don't have to track pointers
-    // 3. We don't have to deallocate these geometries
-    std::shared_ptr<Geometry> sphere;
-    std::shared_ptr<Geometry> bunny;
-
-    // Default camera that rotates around center.
+    // Camera
     Camera camera;
-
-    // UBOs
-    GLuint camera_buffer = 0;
     CameraUBO camera_ubo;
+    GLuint camera_buffer = 0;
 
-    GLuint light_buffer = 0;
+    // Light
     LightUBO light_ubo;
+    GLuint light_buffer = 0;
 
-    GLuint objects_buffer = 0;
-    std::vector<ObjectUBO> objects_ubos;
+    // Programs
+    GLuint normal_program;
+    GLuint postprocess_program;
 
-    // Lights
-    std::vector<LightUBO> lights;
-    GLuint lights_buffer = 0;
+    // Unit sphere
+    Sphere unit_sphere;
+    GLuint unit_sphere_buffer = 0;
+
+    // Unit cube
+    Cube unit_cube;
+
+    // Buffers
+    GLuint skybox_buffer;
+    GLuint earth_buffer;
+    GLuint sun_buffer;
+
+    // Objects UBO
+    ObjectUBO skybox_ubo;
+    ObjectUBO earth_ubo;
+    ObjectUBO sun_ubo;
 
     // Textures
-    GLuint marble_texture = 0;
+    GLuint skybox_texture;
+    GLuint earth_day_texture;
+    GLuint earth_night_texture;
+    GLuint sun_texture;
 
+    // Frame buffer
+    GLuint frame_buffer_name;
+    GLuint render_texture;
+    GLuint render_texture_vao;
+    GLuint depth_buffer;
+
+  public:
     // ----------------------------------------------------------------------------
     // Constructors & Destructors
     // ----------------------------------------------------------------------------
-  public:
     /**
      * Constructs a new @link Application with a custom width and height.
      *
