@@ -58,6 +58,19 @@ class Application : public PV112Application {
     CameraUBO camera_ubo;
     GLuint camera_buffer = 0;
 
+    bool first_move = true;
+    double lastX, lastY;
+
+    double yaw = -90.0;
+    double pitch = 0.0;
+
+    glm::vec3 cam_front{0.0f, 0.0f, -1.0f};
+    bool pressed = false;
+    float sensitivity = 0.3f;
+    double speed = 0.1f;
+    bool w_hold = false;
+    bool s_hold = false;
+
     // Light
     LightUBO light_ubo;
     GLuint light_buffer = 0;

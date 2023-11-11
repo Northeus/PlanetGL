@@ -2,6 +2,8 @@
 #include "cube.hpp"
 #include "geometry.hpp"
 
+#include <GLFW/glfw3.h>
+#include <algorithm>
 #include <glm/gtx/transform.hpp>
 #include <memory>
 #include <stdexcept>
@@ -55,35 +57,38 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
         glm::radians(45.0f),
         float(width) / float(height),
         0.01f, 1000.0f);
-    camera_ubo.view = glm::lookAt(
-        camera.get_eye_position(),
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f));
     camera_ubo.position = glm::vec4(camera.get_eye_position(), 1.0f);
+    camera_ubo.view = glm::lookAt(
+        glm::vec3(camera_ubo.position),
+        cam_front,
+        glm::vec3(0.0f, 1.0f, 0.0f));
 
     // TODO make again point (pos.w = 1)
-    light_ubo.position = glm::vec4(0.0f, 8.0f, 20.0f, 0.0f);
+    light_ubo.position = glm::vec4(0.0f, 6.0f, 18.0f, 0.0f);
     light_ubo.ambient_color = glm::vec4(1.0f);
     light_ubo.diffuse_color = glm::vec4(1.0f);
     light_ubo.specular_color = glm::vec4(1.0f);
 
     skybox_ubo.model_matrix = glm::scale(glm::vec3{100.0f, 100.0f, 100.0f});
-    skybox_ubo.ambient_color = glm::vec4(0.01f);
+    skybox_ubo.ambient_color = glm::vec4(0.05f);
     skybox_ubo.diffuse_color = glm::vec4(0.0f);
     skybox_ubo.specular_color = glm::vec4(0.0f);
 
     // TODO update value
-    earth_ubo.model_matrix = glm::scale(
-        glm::rotate(glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-        glm::vec3{1.0f, 1.0f, 1.0f});
-    earth_ubo.ambient_color = glm::vec4(0.8f);
+    earth_ubo.model_matrix = glm::translate(
+        glm::scale(
+            glm::rotate(glm::radians(180.0f),
+                glm::vec3(0.0f, 0.0f, 1.0f)),
+            glm::vec3{1.0f, 1.0f, 1.0f}),
+        glm::vec3(0.0f, 0.0f, 1.0f));
+    earth_ubo.ambient_color = glm::vec4(0.01f);
     earth_ubo.diffuse_color = glm::vec4(0.8f);
-    earth_ubo.specular_color = glm::vec4(0.1f);
+    earth_ubo.specular_color = glm::vec4(0.0f);
 
     sun_ubo.model_matrix = glm::translate(
         glm::scale(glm::vec3{5.0f, 5.0f, 5.0f}),
         glm::vec3(light_ubo.position));
-    sun_ubo.ambient_color = glm::vec4(1.0f, 0.5f, 0.0f, 1.0f);
+    sun_ubo.ambient_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
     sun_ubo.diffuse_color = glm::vec4(0.0f);
     sun_ubo.specular_color = glm::vec4(0.0f);
 
@@ -155,6 +160,11 @@ void Application::compile_shaders() {
 }
 
 void Application::update(float delta) {
+    if (w_hold)
+        camera_ubo.position += glm::vec4(cam_front, 0.0f) * speed * delta;
+    if (s_hold)
+        camera_ubo.position -= glm::vec4(cam_front, 0.0f) * speed * delta;
+
     earth_ubo.model_matrix = glm::rotate(
         earth_ubo.model_matrix,
         glm::radians(360.0f * (delta / 10000.0f)),
@@ -199,6 +209,7 @@ void Application::render() {
     // Update UBOs
     // --------------------------------------------------------------------------
     // Camera
+    /* TODO?
     camera_ubo.position = glm::vec4(camera.get_eye_position(), 0.0f);
     camera_ubo.projection = glm::perspective(
         glm::radians(45.0f),
@@ -207,6 +218,12 @@ void Application::render() {
     camera_ubo.view = glm::lookAt(
         camera.get_eye_position(),
         glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+    */
+
+    camera_ubo.view = glm::lookAt(
+        glm::vec3(camera_ubo.position),
+        glm::vec3(camera_ubo.position) + cam_front,
         glm::vec3(0.0f, 1.0f, 0.0f));
 
     glNamedBufferSubData(camera_buffer, 0, sizeof(CameraUBO), &camera_ubo);
@@ -272,6 +289,7 @@ void Application::render() {
     glUseProgram(postprocess_program);
 
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, camera_buffer);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, light_buffer);
     glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(camera_ubo.projection));
     glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(camera_ubo.view));
 
@@ -288,21 +306,68 @@ void Application::render_ui() { const float unit = ImGui::GetFontSize(); }
 // ----------------------------------------------------------------------------
 // Input Events
 // ----------------------------------------------------------------------------
-
 void Application::on_resize(int width, int height) {
     // Calls the default implementation to set the class variables.
     PV112Application::on_resize(width, height);
 }
 
+// learnopengl
 void Application::on_mouse_move(double x, double y) {
-    camera.on_mouse_move(x, y);
+    if (first_move) {
+        lastX = x;
+        lastY = y;
+        first_move = false;
+    }
+
+    double offsetX = x - lastX;
+    double offsetY = y - lastY;
+    lastX = x;
+    lastY = y;
+
+    offsetX *= sensitivity;
+    offsetY *= sensitivity;
+
+    yaw += offsetX;
+    pitch -= offsetY;
+
+    pitch = std::clamp(pitch, -89.0, 89.0);
+
+    glm::vec3 dir;
+    dir.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    dir.y = sin(glm::radians(pitch));
+    dir.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+
+    if (pressed) {
+        cam_front = glm::normalize(dir);
+    }
+
+    first_move = !pressed;
+    // camera.on_mouse_move(x, y);
 }
 
 void Application::on_mouse_button(int button, int action, int mods) {
-    camera.on_mouse_button(button, action, mods);
+    pressed = button == GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS;
+    // camera.on_mouse_button(button, action, mods);
 }
 
 void Application::on_key_pressed(int key, int scancode, int action, int mods) {
     // Calls default implementation that invokes compile_shaders when 'R key is hit.
+
+    if (key == GLFW_KEY_W && action == GLFW_PRESS)
+        w_hold = true;
+    if (key == GLFW_KEY_W && action == GLFW_RELEASE)
+        w_hold = false;
+
+    if (key == GLFW_KEY_S && action == GLFW_PRESS)
+        s_hold = true;
+    if (key == GLFW_KEY_S && action == GLFW_RELEASE)
+        s_hold = false;
+
+    if (key == GLFW_KEY_A && action == GLFW_PRESS)
+        speed *= 2;
+
+    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+        speed /= 2;
+
     PV112Application::on_key_pressed(key, scancode, action, mods);
 }

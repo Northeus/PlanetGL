@@ -1,4 +1,5 @@
 #version 450
+// TODO add source (atmosphere from coding adventure
 
 layout(binding = 0, std140) uniform Camera {
     mat4 projection;
