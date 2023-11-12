@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <glm/gtx/transform.hpp>
+#include <imgui.h>
 #include <memory>
 #include <stdexcept>
 
@@ -293,6 +294,12 @@ void Application::render() {
     glUniformMatrix4fv(1, 1, GL_FALSE, glm::value_ptr(camera_ubo.projection));
     glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(camera_ubo.view));
 
+    glUniform1i(3, number_of_measurements);
+    glUniform1i(4, number_of_optical_depths);
+    glUniform1f(5, density_falloff);
+    glUniform3fv(6, 1, glm::value_ptr(wave_lengths));
+    glUniform1f(7, scattering_strength);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, render_texture);
 
@@ -301,7 +308,31 @@ void Application::render() {
 
 }
 
-void Application::render_ui() { const float unit = ImGui::GetFontSize(); }
+void Application::render_ui() {
+    const float unit = ImGui::GetFontSize();
+
+    if (show_menu) {
+        ImGui::Begin("Parameters", nullptr, ImGuiWindowFlags_NoDecoration);
+        ImGui::SetWindowSize(ImVec2(32 * unit, 9 * unit));
+        ImGui::SetWindowPos(ImVec2(1 * unit, 1 * unit));
+
+        ImGui::SliderInt("Measurements", &number_of_measurements, 1, 20);
+        ImGui::SliderInt("Optical depths", &number_of_optical_depths, 1, 20);
+        ImGui::SliderFloat("Density falloff", &density_falloff, -20.0f, 20.0f);
+        ImGui::SliderFloat("Scattering strength", &scattering_strength, 0.0f, 40.0f);
+        ImGui::SliderFloat3("Wavelengths", glm::value_ptr(wave_lengths), 0.0f, 1000.0f);
+
+        ImGui::End();
+    } else {
+        ImGui::Begin("Parameters", nullptr, ImGuiWindowFlags_NoDecoration);
+        ImGui::SetWindowSize(ImVec2(11 * unit, 2 * unit));
+        ImGui::SetWindowPos(ImVec2(1 * unit, 1 * unit));
+
+        ImGui::Text("Press Q to show menu");
+
+        ImGui::End();
+    }
+}
 
 // ----------------------------------------------------------------------------
 // Input Events
@@ -346,7 +377,7 @@ void Application::on_mouse_move(double x, double y) {
 }
 
 void Application::on_mouse_button(int button, int action, int mods) {
-    pressed = button == GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS;
+    pressed = button == GLFW_MOUSE_BUTTON_2 && action == GLFW_PRESS;
     // camera.on_mouse_button(button, action, mods);
 }
 
@@ -368,6 +399,9 @@ void Application::on_key_pressed(int key, int scancode, int action, int mods) {
 
     if (key == GLFW_KEY_D && action == GLFW_PRESS)
         speed /= 2;
+
+    if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+        show_menu = !show_menu;
 
     PV112Application::on_key_pressed(key, scancode, action, mods);
 }

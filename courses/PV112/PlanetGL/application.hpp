@@ -108,6 +108,15 @@ class Application : public PV112Application {
     GLuint render_texture_vao;
     GLuint depth_buffer;
 
+    // Atmosphere parameters
+    bool show_menu = false;
+    int number_of_measurements = 10;
+    int number_of_optical_depths = 10;
+    float density_falloff = 4.3f;
+    glm::vec3 wave_lengths = glm::vec3(700, 530, 440);
+    float scattering_strength = 8.0f;
+
+
   public:
     // ----------------------------------------------------------------------------
     // Constructors & Destructors

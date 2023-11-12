@@ -19,6 +19,12 @@ layout(location = 1) uniform mat4 projection;
 layout(location = 2) uniform mat4 view;
 uniform sampler2D renderTexture;
 
+layout(location = 3) uniform int number_of_measurements;
+layout(location = 4) uniform int number_of_optical_depths;
+layout(location = 5) uniform float density_falloff;
+layout(location = 6) uniform vec3 wave_lengths;
+layout(location = 7) uniform float scattering_strength;
+
 const vec3 earth_position = vec3(0.0f, 0.0f, 1.0f);
 const float earth_radius = 1.0f;
 const float atmosphere_radius = 1.6;
@@ -26,7 +32,6 @@ const float atmosphere_radius = 1.6;
 in vec2 UV;
 
 out vec4 color;
-
 
 struct ray {
     vec3 from;
@@ -79,13 +84,6 @@ intersections get_sphere_intersection_t(
     return intersections(0.0f, 0.0f, false);
 }
 
-const int number_of_measurements = 10;
-const int number_of_optical_depths = 10;
-const float density_falloff = 4.3f;
-const vec3 wave_lengths = vec3(700, 530, 440);
-const float scattering_strength = 8.0f;
-const vec3 scatter_color = pow(400 / wave_lengths, vec3(4)) * scattering_strength;
-
 float density_at_point(vec3 position) {
     float height_above_surface = length(position - earth_position) - earth_radius;
     float height_scaled = height_above_surface / (atmosphere_radius - earth_radius);
@@ -109,6 +107,8 @@ float optical_depth(vec3 position, vec3 light_dir, float ray_length) {
 }
 
 vec3 calculate_light(vec3 position, vec3 direction_normal, float length, vec3 orig_color) {
+    vec3 scatter_color = pow(400 / wave_lengths, vec3(4)) * scattering_strength;
+
     vec3 scatter_point = position;
     float step_size = length / (number_of_measurements - 1);
     vec3 scattered_light = vec3(0.0f);
