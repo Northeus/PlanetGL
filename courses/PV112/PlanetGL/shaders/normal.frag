@@ -54,12 +54,12 @@ void main() {
 
     vec3 color = ambient.rgb + NdotL * diffuse.rgb + pow(NdotH, object.specular_color.w) * specular;
 
-    if (light.position.w == 1.0) {
-        color /= (dot(light_vector, light_vector));
-    }
+    //if (light.position.w == 1.0) {
+    //    color /= (dot(light_vector, light_vector));
+    //}
 
-    color = color / (color + 1.0);       // tone mapping
-    color = pow(color, vec3(1.0 / 2.2)); // gamma correction
+    // color = color / (color + 1.0);       // tone mapping
+    // color = pow(color, vec3(1.0 / 2.2)); // gamma correction
 
     final_color = vec4(color, 1.0);
 }

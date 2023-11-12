@@ -81,8 +81,8 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
                 glm::vec3(0.0f, 0.0f, 1.0f)),
             glm::vec3{1.0f, 1.0f, 1.0f}),
         glm::vec3(0.0f, 0.0f, 1.0f));
-    earth_ubo.ambient_color = glm::vec4(0.01f);
-    earth_ubo.diffuse_color = glm::vec4(0.8f);
+    earth_ubo.ambient_color = glm::vec4(0.0f);
+    earth_ubo.diffuse_color = glm::vec4(0.3f);
     earth_ubo.specular_color = glm::vec4(0.0f);
 
     sun_ubo.model_matrix = glm::translate(
@@ -270,7 +270,7 @@ void Application::render() {
     glBindTextureUnit(3, skybox_texture);
     glDisable(GL_CULL_FACE);
     glBindBufferRange(GL_UNIFORM_BUFFER, 2, skybox_buffer, 0, sizeof(ObjectUBO));
-    unit_cube.draw();
+    // unit_cube.draw();
 
     // TODO CITE:
     // http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-14-render-to-texture/

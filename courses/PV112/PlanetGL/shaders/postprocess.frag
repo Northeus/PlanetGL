@@ -49,14 +49,16 @@ vec3 get_ray() {
     return normalize(ray_wor);
 }
 
-vec2 get_sphere_intersection_t(
+struct intersections {
+    float t1;
+    float t2;
+    bool did;
+};
+
+intersections get_sphere_intersection_t(
     vec3 sphere_position, float sphere_radius,
     vec3 position, vec3 direction_normal) {
     float t = dot(sphere_position - position, direction_normal);
-
-    if ( t <= 0.0f ) {
-        return vec2(0.0f);
-    }
 
     vec3 sphere_intersection_midpoint = position + direction_normal * t;
     float distance_to_sphere_mid = length(sphere_intersection_midpoint - sphere_position);
@@ -67,34 +69,21 @@ vec2 get_sphere_intersection_t(
         float t1 = t - half_intersect_length;
         float t2 = t + half_intersect_length;
 
-        return vec2(t1, t2);
+        if (t1 < 0.0f && t2 < 0.0f) {
+            return intersections(0.0f, 0.0f, false);
+        }
+
+        return intersections(min(t1, t2), max(t1, t2), true);
     }
 
-    return vec2(0.0f);
-}
-
-// vec2(dist_to_sphere, dist_in_sphere)
-vec2 ray_sphere_intersection_lengths(
-    vec3 sphere_position, float sphere_radius,
-    vec3 position, vec3 direction_normal) {
-    vec2 intersection_times = get_sphere_intersection_t(
-        sphere_position, sphere_radius,
-        position, direction_normal);
-
-    if (intersection_times.x <= 0.0f && intersection_times.y <= 0.0f) {
-        return vec2(0.0f, 0.0f);
-    }
-
-    return vec2(
-        max(intersection_times.x, 0.0f),
-        intersection_times.y - intersection_times.x);
+    return intersections(0.0f, 0.0f, false);
 }
 
 const int number_of_measurements = 10;
 const int number_of_optical_depths = 10;
 const float density_falloff = 4.3f;
 const vec3 wave_lengths = vec3(700, 530, 440);
-const float scattering_strength = 16.0f;
+const float scattering_strength = 8.0f;
 const vec3 scatter_color = pow(400 / wave_lengths, vec3(4)) * scattering_strength;
 
 float density_at_point(vec3 position) {
@@ -127,9 +116,9 @@ vec3 calculate_light(vec3 position, vec3 direction_normal, float length, vec3 or
     float view_ray_optical_depth = 0;
 
     for (int i = 0; i < number_of_measurements; i++) {
-        // Possible error (dist behind)
-        float sun_ray_length = ray_sphere_intersection_lengths(
-            earth_position, atmosphere_radius, scatter_point, dir_to_sun).y;
+        intersections sun_ray_intersections = get_sphere_intersection_t(
+            earth_position, atmosphere_radius, scatter_point, dir_to_sun);
+        float sun_ray_length = 1.0f;//sun_ray_ts.t2; // We are in atmosphere
 
         float sun_ray_optical_depth = optical_depth(
             scatter_point, dir_to_sun, sun_ray_length);
@@ -151,26 +140,32 @@ void main() {
     color = texture(renderTexture, UV);
     vec3 ray_dir = get_ray();
 
-    vec2 earth_lengths = ray_sphere_intersection_lengths(
+    intersections earth_intersections = get_sphere_intersection_t(
         earth_position, earth_radius, camera.position, ray_dir);
-    vec2 atmosphere_lengths = ray_sphere_intersection_lengths(
+    intersections atmosphere_intersections = get_sphere_intersection_t(
         earth_position, atmosphere_radius, camera.position, ray_dir);
 
-    // Error if am looking closer out of atmosphere (from earth out)
-    float distance_to_atmosphere = atmosphere_lengths.x;
-    float distance_through_atmosphere = atmosphere_lengths.y;
-
-    if (earth_lengths.y != 0.0f) {
-        distance_through_atmosphere = earth_lengths.x - distance_to_atmosphere;
+    if (!atmosphere_intersections.did) {
+        return;
     }
 
-    if (distance_through_atmosphere > 0.0f) {
-        float eps = 0.0001;
-        vec3 point_in_atmosphere =
-            camera.position + ray_dir * (distance_to_atmosphere /*+ eps*/);
-        vec3 light = calculate_light(
-            point_in_atmosphere, ray_dir, distance_through_atmosphere /*- eps*/, color.xyz);
-        color = vec4(light, 1.0f);
+    float distance_to_atmosphere = atmosphere_intersections.t1;
+    float distance_through_atmosphere =
+        atmosphere_intersections.t2 - atmosphere_intersections.t1;
+
+    if (atmosphere_intersections.t1 < 0.0f && atmosphere_intersections.t2 > 0.0f) {
+        distance_to_atmosphere = 0;
+        distance_through_atmosphere = atmosphere_intersections.t2;
     }
+
+    if (earth_intersections.did) {
+       distance_through_atmosphere = earth_intersections.t1 - distance_to_atmosphere;
+    }
+
+    vec3 point_in_atmosphere =
+        camera.position + ray_dir * distance_to_atmosphere;
+    vec3 light = calculate_light(
+        point_in_atmosphere, ray_dir, distance_through_atmosphere, color.xyz);
+    color = vec4(light, 1.0f);
 }
 
