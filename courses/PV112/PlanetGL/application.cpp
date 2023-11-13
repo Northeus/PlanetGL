@@ -318,7 +318,7 @@ void Application::render_ui() {
 
         ImGui::SliderInt("Measurements", &number_of_measurements, 1, 20);
         ImGui::SliderInt("Optical depths", &number_of_optical_depths, 1, 20);
-        ImGui::SliderFloat("Density falloff", &density_falloff, -20.0f, 20.0f);
+        ImGui::SliderFloat("Density falloff", &density_falloff, 0.0f, 20.0f);
         ImGui::SliderFloat("Scattering strength", &scattering_strength, 0.0f, 40.0f);
         ImGui::SliderFloat3("Wavelengths", glm::value_ptr(wave_lengths), 0.0f, 1000.0f);
 
