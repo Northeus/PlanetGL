@@ -1,0 +1,8 @@
+Package: gtest
+Version: 1.12.1
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-linux
+Multi-Arch: same
+Abi: a893fbf2b1292289b5356ee4b0484ed4c6283f357b6f5184fbd0a1bf2ace086f
+Description: GoogleTest and GoogleMock testing frameworks
+Status: install ok half-installed

@@ -9,6 +9,4 @@ All code is in `./courses/PV112/PlanetGL`.
  - use `make clean` to remove the build dir
 
 ## TODO
- - shader for sun ignoring light
- - atmosphere
- - moon
+ -
