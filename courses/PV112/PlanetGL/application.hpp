@@ -41,7 +41,7 @@ struct alignas(256) ObjectUBO {
 };
 
 // Constants
-const float clear_color[4] = {0.0, 0.0, 0.0, 1.0};
+const float clear_color[4] = {0.3, 0.3, 0.9, 1.0};
 const float clear_depth[1] = {1.0};
 
 class Application : public PV112Application {
@@ -67,7 +67,7 @@ class Application : public PV112Application {
     glm::vec3 cam_front{0.0f, 0.0f, -1.0f};
     bool pressed = false;
     float sensitivity = 0.3f;
-    double speed = 0.1f;
+    double speed = 0.02f;
     bool w_hold = false;
     bool s_hold = false;
 
@@ -116,6 +116,25 @@ class Application : public PV112Application {
     glm::vec3 wave_lengths = glm::vec3(700, 530, 440);
     float scattering_strength = 8.0f;
 
+    // Room scene
+    struct object {
+        Geometry model;
+        GLuint buffer;
+        ObjectUBO ubo;
+        GLuint texture;
+    };
+
+    object room;
+    object nature;
+    std::array<object, 7> chickens;
+    object airplane;
+
+    void mko(object& obj, const std::string&, glm::mat4);
+    void dro(object& obj);
+
+    // Renders
+    void render_universe();
+    void render_scene();
 
   public:
     // ----------------------------------------------------------------------------

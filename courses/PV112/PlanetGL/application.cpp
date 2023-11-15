@@ -14,6 +14,7 @@
 
 GLuint load_texture_2d(const std::filesystem::path filename) {
     int width, height, channels;
+    stbi_set_flip_vertically_on_load(true);
     unsigned char* data = stbi_load(filename.generic_string().data(), &width, &height, &channels, 4);
 
     GLuint texture;
@@ -38,6 +39,24 @@ GLuint load_texture_2d(const std::filesystem::path filename) {
     return texture;
 }
 
+void Application::mko(Application::object& obj, const std::string& name, glm::mat4 model_matrix)
+{
+    obj.texture = load_texture_2d(images_path / ( name + ".jpg"));
+    obj.model = Geometry::from_file(objects_path / ( name + ".obj"));
+
+    obj.ubo.model_matrix = model_matrix;
+    obj.ubo.ambient_color = glm::vec4(0.2f);
+    obj.ubo.diffuse_color = glm::vec4(0.5f);
+    obj.ubo.specular_color = glm::vec4(0.0f);
+
+    glCreateBuffers(1, &obj.buffer);
+    glNamedBufferStorage(
+        obj.buffer,
+        sizeof(ObjectUBO),
+        &obj.ubo,
+        0);
+}
+
 Application::Application(int initial_width, int initial_height, std::vector<std::string> arguments)
     : PV112Application(initial_width, initial_height, arguments) {
     this->width = initial_width;
@@ -50,6 +69,26 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
     earth_day_texture = load_texture_2d(images_path / "earth_day.jpg");
     earth_night_texture = load_texture_2d(images_path / "earth_night.jpg");
     sun_texture = load_texture_2d(images_path / "sun.jpg");
+
+    mko(nature, "nature", glm::scale(glm::vec3(50.0f)));
+    mko(room, "room", glm::translate(glm::scale(glm::vec3(10.0f)),
+                                     glm::vec3(-1.6f, 0.05f, 1.6f)));
+    mko(airplane, "airplane", glm::translate(glm::scale(glm::vec3(10.0f)),
+                                             glm::vec3(0.0f, 2.0f, 0.0f)));
+    for (auto [ i, x, y ] : std::vector<std::tuple<int, double, double>>{
+                {0, -2., -2.},
+                {1,  2., -2.},
+                {2, -2.,  2.},
+                {3,  0.,  0.},
+                {4, -4., -4.},
+                {5, -2., -4.},
+                {6, -4., -4.},
+            })
+    {
+        mko(chickens[ i ], "chicken", glm::translate(glm::vec3(-0.f + x, -3.3f, -3.f + y)));
+        // this isnt the most efficient way
+    }
+    // mko(room, "chicken")
 
     // --------------------------------------------------------------------------
     // Initialize UBO Data
@@ -65,7 +104,7 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
         glm::vec3(0.0f, 1.0f, 0.0f));
 
     // TODO make again point (pos.w = 1)
-    light_ubo.position = glm::vec4(0.0f, 6.0f, 18.0f, 0.0f);
+    light_ubo.position = glm::vec4(10.0f, 10.0f, /*18*/-10.0f, 0.0f);
     light_ubo.ambient_color = glm::vec4(1.0f);
     light_ubo.diffuse_color = glm::vec4(1.0f);
     light_ubo.specular_color = glm::vec4(1.0f);
@@ -185,6 +224,7 @@ void Application::render() {
     // Set up framebuffer
     // --------------------------------------------------------------------------
     // Setup framebuffer (TODO should it be all there?)
+    /*
     glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer_name);
 
     glBindTexture(GL_TEXTURE_2D, render_texture);
@@ -205,6 +245,7 @@ void Application::render() {
         std::cerr << "Cannot initialize frame buffer\n";
         throw std::exception{};
     }
+    */
 
     // --------------------------------------------------------------------------
     // Update UBOs
@@ -245,39 +286,19 @@ void Application::render() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-
-    // Prepare shader
-    glUseProgram(normal_program);
-
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, camera_buffer);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, light_buffer);
-
-    // Draw sun
-    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
-    glBindTextureUnit(3, sun_texture);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 2, sun_buffer, 0, sizeof(ObjectUBO));
-    unit_sphere.draw();
-
-    // Draw earth
-    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
-    glBindTextureUnit(3, earth_day_texture);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 2, earth_buffer, 0, sizeof(ObjectUBO));
-    unit_sphere.draw();
-
-    // Draw skybox
-    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
-    glBindTextureUnit(3, skybox_texture);
+    //glEnable(GL_CULL_FACE);
+    //glCullFace(GL_BACK);
     glDisable(GL_CULL_FACE);
-    glBindBufferRange(GL_UNIFORM_BUFFER, 2, skybox_buffer, 0, sizeof(ObjectUBO));
-    // unit_cube.draw();
+
+    // render_universe();
+    render_scene();
 
     // TODO CITE:
     // http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-14-render-to-texture/
     // ----------a----------------------------------------------------------------
     // Set up framebuffer
     // --------------------------------------------------------------------------
+    /*
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glViewport(0, 0, width, height);
@@ -305,7 +326,59 @@ void Application::render() {
 
     glBindVertexArray(render_texture_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+    */
+}
 
+void Application::render_universe()
+{
+    glUseProgram(normal_program);
+
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, camera_buffer);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, light_buffer);
+
+    // Draw sun
+    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
+    glBindTextureUnit(3, sun_texture);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 2, sun_buffer, 0, sizeof(ObjectUBO));
+    unit_sphere.draw();
+
+    // Draw earth
+    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
+    glBindTextureUnit(3, earth_day_texture);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 2, earth_buffer, 0, sizeof(ObjectUBO));
+    unit_sphere.draw();
+
+    // Draw skybox
+    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
+    glBindTextureUnit(3, skybox_texture);
+    glDisable(GL_CULL_FACE);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 2, skybox_buffer, 0, sizeof(ObjectUBO));
+    // unit_cube.draw();
+}
+
+void Application::render_scene()
+{
+    glUseProgram(normal_program);
+
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, camera_buffer);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, light_buffer);
+
+    dro(room);
+    dro(nature);
+    dro(airplane);
+
+    for (auto& o : chickens)
+    {
+        dro(o);
+    }
+}
+
+void Application::dro(Application::object& o)
+{
+    glUniform1i(glGetUniformLocation(normal_program, "has_texture"), true);
+    glBindTextureUnit(3, o.texture);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 2, o.buffer, 0, sizeof(ObjectUBO));
+    o.model.draw();
 }
 
 void Application::render_ui() {
