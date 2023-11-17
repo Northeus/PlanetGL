@@ -1,5 +1,7 @@
 #version 450
 
+// Inspired by https://www.youtube.com/watch?v=DxfEbulyFcY
+
 layout(binding = 0, std140) uniform Camera {
     mat4 projection;
     mat4 view;

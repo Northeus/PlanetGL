@@ -41,10 +41,31 @@ struct alignas(256) ObjectUBO {
 };
 
 // Constants
-const float clear_color[4] = {0.3, 0.3, 0.9, 1.0};
+const float blue_color[4] = {0.3, 0.3, 0.9, 1.0};
+const float black_color[4] = {0.0, 0.0, 0.0, 1.0};
 const float clear_depth[1] = {1.0};
 
 class Application : public PV112Application {
+    struct object {
+        std::shared_ptr<Geometry> model;
+        GLuint buffer;
+        ObjectUBO ubo;
+        GLuint texture; // Might be shared for some project, not needed here
+        bool has_texture;
+        bool ignore_light;
+
+        ~object();
+        void load_buffer();
+    };
+
+    struct frame_buffer {
+        GLuint name;
+        GLuint texture;
+
+        ~frame_buffer();
+        void load_buffer(int, int);
+        void bind();
+    };
 
     // ----------------------------------------------------------------------------
     // Variables
@@ -54,59 +75,46 @@ class Application : public PV112Application {
     std::filesystem::path objects_path = lecture_folder_path / "objects";
 
     // Camera
-    Camera camera;
-    CameraUBO camera_ubo;
-    GLuint camera_buffer = 0;
+    CameraUBO camera_room_ubo;
+    GLuint camera_room_buffer = 0;
+    glm::vec3 cam_room_front{0.0f, 0.0f, -1.0f};
+    double yaw_room = -90.0f;
+    double pitch_room = 0.0f;
+
+    CameraUBO camera_space_ubo;
+    GLuint camera_space_buffer = 0;
+    glm::vec3 cam_space_front{0.0f, 0.0f, -1.0f};
+    double yaw_space = -90.0;
+    double pitch_space = 0.0;
 
     bool first_move = true;
     double lastX, lastY;
 
-    double yaw = -90.0;
-    double pitch = 0.0;
-
-    glm::vec3 cam_front{0.0f, 0.0f, -1.0f};
     bool pressed = false;
     float sensitivity = 0.3f;
     double speed = 0.02f;
     bool w_hold = false;
     bool s_hold = false;
 
-    // Light
-    LightUBO light_ubo;
-    GLuint light_buffer = 0;
+    // Framebuffers
+    frame_buffer space_bf;
+    frame_buffer screen_bf;
 
     // Programs
     GLuint normal_program;
     GLuint postprocess_program;
+    GLuint screen_program;
 
-    // Unit sphere
-    Sphere unit_sphere;
-    GLuint unit_sphere_buffer = 0;
+    // Helper objects
+    object sphere;
 
-    // Unit cube
-    Cube unit_cube;
+    // Universe scene
+    LightUBO light_ubo;
+    GLuint light_buffer = 0;
 
-    // Buffers
-    GLuint skybox_buffer;
-    GLuint earth_buffer;
-    GLuint sun_buffer;
-
-    // Objects UBO
-    ObjectUBO skybox_ubo;
-    ObjectUBO earth_ubo;
-    ObjectUBO sun_ubo;
-
-    // Textures
-    GLuint skybox_texture;
-    GLuint earth_day_texture;
-    GLuint earth_night_texture;
-    GLuint sun_texture;
-
-    // Frame buffer
-    GLuint frame_buffer_name;
-    GLuint render_texture;
-    GLuint render_texture_vao;
-    GLuint depth_buffer;
+    // Space scene
+    object earth;
+    object sun_space;
 
     // Atmosphere parameters
     bool show_menu = false;
@@ -117,24 +125,29 @@ class Application : public PV112Application {
     float scattering_strength = 8.0f;
 
     // Room scene
-    struct object {
-        Geometry model;
-        GLuint buffer;
-        ObjectUBO ubo;
-        GLuint texture;
-    };
+    LightUBO light_room_ubo[2];
+    GLuint light_room_buffer = 0;
 
     object room;
     object nature;
     std::array<object, 7> chickens;
     object airplane;
+    object sun_room;
+    object screen;
 
-    void mko(object& obj, const std::string&, glm::mat4);
+    void mko(object& obj, const std::string&, glm::mat4,
+        std::shared_ptr<Geometry> = nullptr, bool = true, bool = false);
     void dro(object& obj);
+
+    void mkf(frame_buffer&);
+
+    bool is_space_scene = true;
 
     // Renders
     void render_universe();
     void render_scene();
+
+    void print_hello();
 
   public:
     // ----------------------------------------------------------------------------
