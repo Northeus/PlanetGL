@@ -171,6 +171,8 @@ Application::Application(int initial_width, int initial_height, std::vector<std:
     sun_space.ubo.specular_color = glm::vec4(0.0f);
     sun_space.load_buffer();
 
+    mko(rocket, "rocket", glm::mat4(1.0f));
+
     mko(nature, "nature", glm::scale(glm::vec3(50.0f)));
     mko(room, "room", glm::translate(glm::scale(glm::vec3(10.0f)),
                                      glm::vec3(-1.6f, 0.05f, 1.6f)));
@@ -403,6 +405,7 @@ void Application::render_universe()
 
     dro(sun_space);
     dro(earth);
+    //dro(rocket);
 }
 
 void Application::render_scene()

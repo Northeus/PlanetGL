@@ -115,6 +115,7 @@ class Application : public PV112Application {
     // Space scene
     object earth;
     object sun_space;
+    object rocket;
 
     // Atmosphere parameters
     bool show_menu = false;
